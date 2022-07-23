@@ -1,0 +1,13 @@
+diff --git a/node_modules/@hmscore/react-native-hms-location/android/build.gradle b/node_modules/@hmscore/react-native-hms-location/android/build.gradle
+index 623917f..78c827a 100644
+--- a/node_modules/@hmscore/react-native-hms-location/android/build.gradle
++++ b/node_modules/@hmscore/react-native-hms-location/android/build.gradle
+@@ -11,7 +11,7 @@ buildscript {
+ }
+ 
+ apply plugin: 'com.android.library'
+-apply plugin: 'maven'
++apply plugin: 'maven-publish'
+ 
+ android {
+     compileSdkVersion 29

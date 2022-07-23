@@ -6,7 +6,7 @@
  * @flow strict-local
  */
 
-import React from 'react';
+import React, {useEffect, useState} from 'react';
 import type {Node} from 'react';
 import {
   SafeAreaView,
@@ -18,75 +18,140 @@ import {
   View,
 } from 'react-native';
 
+import CustomMap from './src/utils/customMap';
+import {getCurrentPosition} from './src/utils/customLocation';
+
+import {isAndroid, isIOS} from './src/utils/helper';
 import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+  checkForLocationPermission,
+  requestForLocationPermission,
+} from './src/utils/permissions';
+import {RESULTS} from 'react-native-permissions';
 
-const Section = ({children, title}): Node => {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-};
+let mapView;
 
+const SAUDI_CENTER_LAT = 24.785416;
+const SAUDI_CENTER_LNG = 44.929112;
+const SAUDI_CENTER_LAT_DELTA = 15;
+const SAUDI_CENTER_LNG_DELTA = 15;
+
+// onMapReady={() => this.animateToCurrentLocation()}
+// onPress={this.onMapTapped}
 const App: () => Node = () => {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  const [fetchingCurrentLocation, setFetchingCurrentLocation] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState({});
+  const animateToCurrentLocation = () => {
+    console.log('permission', 'call user permission');
+    if (isIOS()) {
+      getCurrentUserLocation();
+    } else {
+      requestForLocationPermissionNow();
+    }
+  };
+  const requestForLocationPermissionNow = async () => {
+    console.log('requestForLocationPermission', 'requestForLocationPermission');
+    try {
+      const check = await checkForLocationPermission();
+      if (check === RESULTS.GRANTED) {
+        getCurrentUserLocation();
+      } else {
+        const request = await requestForLocationPermission();
+        if (request === RESULTS.GRANTED) {
+          getCurrentUserLocation();
+        } else {
+          setFetchingCurrentLocationWithDelay();
+        }
+      }
+    } catch (error) {
+      console.log('Error fetching location permission', error);
+      setFetchingCurrentLocationWithDelay();
+    }
   };
 
+  const setFetchingCurrentLocationWithDelay = (
+    isFetching = false,
+    delay = 250,
+  ) => {
+    setTimeout(() => {
+      setFetchingCurrentLocation(isFetching);
+    }, delay);
+  };
+
+  const getCurrentUserLocation = async () => {
+    setFetchingCurrentLocation(true);
+
+    try {
+      const position = await getCurrentPosition({
+        enableHighAccuracy: Platform.OS === 'ios',
+        timeout: 30000,
+        maximumAge: 1000,
+      });
+      if (position) {
+        mapView &&
+          mapView.animateToRegion(
+            {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              latitudeDelta: 0.005,
+              longitudeDelta: 0.005,
+            },
+            1000,
+          );
+
+        const coordinates = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        setSelectedLocation(coordinates);
+        setFetchingCurrentLocation(false);
+      }
+    } catch (error) {
+      console.log('error fetching user location', error);
+      setFetchingCurrentLocation(false);
+    }
+  };
+
+  const onMapTapped = e => {
+    const {coordinate} = e.nativeEvent;
+    console.log('onMapTab', e.nativeEvent);
+    setSelectedLocation(coordinate);
+    mapView.animateToRegion(
+      {
+        latitude: coordinate.latitude,
+        longitude: coordinate.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      },
+      200,
+    );
+  };
+  // onMapReady={() => animateToCurrentLocation()}
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.js</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <CustomMap
+      ref={ref => {
+        mapView = ref;
+      }}
+      style={styles.map}
+      showsUserLocation={true}
+      showsMyLocationButton={true}
+      showsCompass={true}
+      showsScale={true}
+      initialRegion={{
+        latitude: SAUDI_CENTER_LAT,
+        longitude: SAUDI_CENTER_LNG,
+        latitudeDelta: SAUDI_CENTER_LAT_DELTA,
+        longitudeDelta: SAUDI_CENTER_LNG_DELTA,
+      }}
+      onLayout={event => {
+        const {height: mapHeight} = event.nativeEvent.layout;
+        this.setState({
+          mapHeight,
+        });
+      }}
+      onMapReady={() => animateToCurrentLocation()}
+      onPress={onMapTapped}
+      selectedLocation={selectedLocation}
+    />
   );
 };
 
@@ -106,6 +171,9 @@ const styles = StyleSheet.create({
   },
   highlight: {
     fontWeight: '700',
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
   },
 });
 
